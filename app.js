@@ -617,10 +617,6 @@ function attachAppHandlers() {
       });
     }
   }
-
-  if (activeTab === "summary") {
-    renderSummaryTabAsync();
-  }
 }
 
 // ---------------- boot ----------------
