@@ -16,9 +16,9 @@ let notesByClip = {};
 let openClipId = null;
 let activeTab = "clips";
 let editingNote = null; // { clipId, noteId } or null
+let authMode = "login";
 
 const ZONES = ["ft", "paint", "mid", "three"];
-
 const root = document.getElementById("root");
 
 // ---------------- helpers ----------------
@@ -139,14 +139,14 @@ function renderAuth() {
           <p>${tr("tagline")}</p>
         </div>
         <div class="card">
-          <h2 id="auth-title">${tr("login")}</h2>
+          <h2 id="auth-title">${tr(authMode)}</h2>
           <div id="auth-error" class="error-msg hidden"></div>
           <label>${tr("email")}</label>
           <input type="email" id="auth-email" autocomplete="email" />
           <label>${tr("password")}</label>
           <input type="password" id="auth-password" autocomplete="current-password" />
-          <button class="btn-primary" id="auth-submit" style="width:100%">${tr("loginBtn")}</button>
-          <button class="link-btn" id="auth-toggle">${tr("noAccount")}</button>
+          <button class="btn-primary" id="auth-submit" style="width:100%">${authMode === "login" ? tr("loginBtn") : tr("signupBtn")}</button>
+          <button class="link-btn" id="auth-toggle">${authMode === "login" ? tr("noAccount") : tr("haveAccount")}</button>
         </div>
         <div style="text-align:center; margin-top: 16px;">
           <button class="lang-toggle" id="lang-toggle">${lang === "he" ? "English" : "עברית"}</button>
@@ -156,46 +156,55 @@ function renderAuth() {
   `;
 }
 
-let authMode = "login";
-
 function attachAuthHandlers() {
-  document.getElementById("lang-toggle").onclick = () => setLang(lang === "he" ? "en" : "he");
+  const langToggle = document.getElementById("lang-toggle");
+  if (langToggle) langToggle.onclick = () => setLang(lang === "he" ? "en" : "he");
 
-  document.getElementById("auth-toggle").onclick = () => {
-    authMode = authMode === "login" ? "signup" : "login";
-    document.getElementById("auth-title").textContent = authMode === "login" ? tr("login") : tr("signup");
-    document.getElementById("auth-submit").textContent = authMode === "login" ? tr("loginBtn") : tr("signupBtn");
-    document.getElementById("auth-toggle").textContent = authMode === "login" ? tr("noAccount") : tr("haveAccount");
-  };
-
-  document.getElementById("auth-submit").onclick = async () => {
-    const email = document.getElementById("auth-email").value.trim();
-    const password = document.getElementById("auth-password").value;
-    const errBox = document.getElementById("auth-error");
-    errBox.classList.add("hidden");
-
-    let result;
-    if (authMode === "login") {
-      result = await supabase.auth.signInWithPassword({ email, password });
-    } else {
-      result = await supabase.auth.signUp({ email, password });
-    }
-
-    if (result.error) {
-      errBox.textContent = result.error.message || tr("authError");
-      errBox.classList.remove("hidden");
-      return;
-    }
-
-    session = result.data.session;
-    if (session) {
-      await loadClips();
+  const authToggle = document.getElementById("auth-toggle");
+  if (authToggle) {
+    authToggle.onclick = () => {
+      authMode = authMode === "login" ? "signup" : "login";
       render();
-    } else if (authMode === "signup") {
-      errBox.textContent = "Check your email to confirm your account, then log in.";
-      errBox.classList.remove("hidden");
-    }
-  };
+    };
+  }
+
+  const authSubmit = document.getElementById("auth-submit");
+  if (authSubmit) {
+    authSubmit.onclick = async () => {
+      const email = document.getElementById("auth-email").value.trim();
+      const password = document.getElementById("auth-password").value;
+      const errBox = document.getElementById("auth-error");
+      errBox.classList.add("hidden");
+
+      if (!email || !password) {
+        errBox.textContent = "Please fill in all fields.";
+        errBox.classList.remove("hidden");
+        return;
+      }
+
+      let result;
+      if (authMode === "login") {
+        result = await supabase.auth.signInWithPassword({ email, password });
+      } else {
+        result = await supabase.auth.signUp({ email, password });
+      }
+
+      if (result.error) {
+        errBox.textContent = result.error.message || tr("authError");
+        errBox.classList.remove("hidden");
+        return;
+      }
+
+      session = result.data.session;
+      if (session) {
+        await loadClips();
+        render();
+      } else if (authMode === "signup") {
+        errBox.textContent = "Check your email to confirm your account, then log in.";
+        errBox.classList.remove("hidden");
+      }
+    };
+  }
 }
 
 // ---------------- render: main app ----------------
@@ -332,9 +341,13 @@ function renderClipBody(clip) {
         <iframe src="https://www.youtube.com/embed/${clip.video_id}" allowfullscreen></iframe>
       </div>
 
-      <h2 style="font-size:15px;">${editingNote && isEditingHere ? tr("edit") : tr("addNote")}</h2>
+      <div class="clip-actions-top">
+        <button class="danger-btn-outline" data-delete-clip="${clip.id}">${tr("deleteClipBtn")}</button>
+      </div>
+
+      <h2 style="font-size:15px; margin-top:16px;">${editingNote && isEditingHere ? tr("edit") : tr("addNote")}</h2>
       ${renderNoteForm("note-form-" + clip.id, isEditingHere ? notes.find(n => n.id === editingNote.noteId) : null)}
-      <div style="display:flex; gap:10px; margin-top:6px;">
+      <div style="display:flex; gap:10px; margin-top:12px;">
         <button class="btn-primary" data-save-note="${clip.id}">
           ${isEditingHere ? tr("update") : tr("saveNote")}
         </button>
@@ -366,11 +379,11 @@ function renderNoteItem(clipId, note) {
       <div class="stat-pills">
         ${pills.map(([label, p, made, att]) => (made || att) ? `<span class="pill">${label}: <strong>${made || 0}/${att || 0}${p !== null ? " (" + p + "%)" : ""}</strong></span>` : "").join("")}
         ${op !== null ? `<span class="pill">${tr("overallPct")}: <strong>${op}%</strong></span>` : ""}
-        ${note.turnovers ? `<span class="pill">${tr("turnovers")}: <strong>${note.turnovers}</strong></span>` : ""}
-        ${note.assists ? `<span class="pill">${tr("assists")}: <strong>${note.assists}</strong></span>` : ""}
-        ${note.rebounds ? `<span class="pill">${tr("rebounds")}: <strong>${note.rebounds}</strong></span>` : ""}
-        ${note.defense_rating ? `<span class="pill">${tr("defense")}: <strong>${note.defense_rating}</strong></span>` : ""}
-        ${note.efficiency ? `<span class="pill">${tr("efficiency")}: <strong>${note.efficiency}</strong></span>` : ""}
+        ${note.turnovers !== null && note.turnovers !== undefined ? `<span class="pill">${tr("turnovers")}: <strong>${note.turnovers}</strong></span>` : ""}
+        ${note.assists !== null && note.assists !== undefined ? `<span class="pill">${tr("assists")}: <strong>${note.assists}</strong></span>` : ""}
+        ${note.rebounds !== null && note.rebounds !== undefined ? `<span class="pill">${tr("rebounds")}: <strong>${note.rebounds}</strong></span>` : ""}
+        ${note.defense_rating !== null && note.defense_rating !== undefined ? `<span class="pill">${tr("defense")}: <strong>${note.defense_rating}</strong></span>` : ""}
+        ${note.efficiency !== null && note.efficiency !== undefined ? `<span class="pill">${tr("efficiency")}: <strong>${note.efficiency}</strong></span>` : ""}
       </div>
       <div class="note-actions">
         <button data-edit-note="${clipId}:${note.id}">${tr("edit")}</button>
@@ -387,6 +400,8 @@ function renderSummaryTab() {
 async function renderSummaryTabAsync() {
   const allNotes = await loadAllNotes();
   const container = document.getElementById("tab-content");
+  if (!container) return;
+
   if (!allNotes.length) {
     container.innerHTML = `<div class="card"><div class="empty-state">${tr("noDataYet")}</div></div>`;
     return;
@@ -458,11 +473,14 @@ async function renderSummaryTabAsync() {
 function wireZoneLiveCalc(formId) {
   const container = document.getElementById(`${formId}-zones`);
   if (!container) return;
+
   const updateAll = () => {
     const fields = {};
     ZONES.forEach((z) => {
-      const made = container.querySelector(`.zone-made[data-zone="${z}"]`).value;
-      const att = container.querySelector(`.zone-att[data-zone="${z}"]`).value;
+      const madeEl = container.querySelector(`.zone-made[data-zone="${z}"]`);
+      const attEl = container.querySelector(`.zone-att[data-zone="${z}"]`);
+      const made = madeEl ? madeEl.value : "";
+      const att = attEl ? attEl.value : "";
       fields[`${z}_made`] = made;
       fields[`${z}_att`] = att;
       const p = pct(made, att);
@@ -475,6 +493,7 @@ function wireZoneLiveCalc(formId) {
       overallEl.textContent = op === null ? "—" : op + "%";
     }
   };
+
   container.querySelectorAll("input").forEach((inp) => inp.addEventListener("input", updateAll));
   updateAll();
 }
@@ -485,8 +504,8 @@ function readNoteForm(formId) {
   const container = document.getElementById(`${formId}-zones`);
   const fields = { note_text: val(`${formId}-text`) || null };
   ZONES.forEach((z) => {
-    fields[`${z}_made`] = num(container.querySelector(`.zone-made[data-zone="${z}"]`).value);
-    fields[`${z}_att`] = num(container.querySelector(`.zone-att[data-zone="${z}"]`).value);
+    fields[`${z}_made`] = num(container.querySelector(`.zone-made[data-zone="${z}"]`)?.value);
+    fields[`${z}_att`] = num(container.querySelector(`.zone-att[data-zone="${z}"]`)?.value);
   });
   fields.turnovers = num(val(`${formId}-turnovers`));
   fields.assists = num(val(`${formId}-assists`));
@@ -497,14 +516,19 @@ function readNoteForm(formId) {
 }
 
 function attachAppHandlers() {
-  document.getElementById("lang-toggle").onclick = () => setLang(lang === "he" ? "en" : "he");
-  document.getElementById("logout-btn").onclick = async () => {
-    await supabase.auth.signOut();
-    session = null;
-    clips = [];
-    notesByClip = {};
-    render();
-  };
+  const langBtn = document.getElementById("lang-toggle");
+  if (langBtn) langBtn.onclick = () => setLang(lang === "he" ? "en" : "he");
+
+  const logoutBtn = document.getElementById("logout-btn");
+  if (logoutBtn) {
+    logoutBtn.onclick = async () => {
+      await supabase.auth.signOut();
+      session = null;
+      clips = [];
+      notesByClip = {};
+      render();
+    };
+  }
 
   document.querySelectorAll("nav.tabs button").forEach((btn) => {
     btn.onclick = () => {
@@ -516,33 +540,36 @@ function attachAppHandlers() {
   });
 
   if (activeTab === "new") {
-    document.getElementById("add-clip-btn").onclick = async () => {
-      const url = document.getElementById("new-clip-url").value.trim();
-      const title = document.getElementById("new-clip-title").value.trim();
-      const errBox = document.getElementById("new-clip-error");
-      errBox.classList.add("hidden");
-      const videoId = extractYouTubeId(url);
-      if (!videoId) {
-        errBox.textContent = tr("invalidUrl");
-        errBox.classList.remove("hidden");
-        return;
-      }
-      const { data, error } = await supabase
-        .from("clips")
-        .insert({ youtube_url: url, video_id: videoId, title: title || null, user_id: session.user.id })
-        .select()
-        .single();
-      if (error) {
-        errBox.textContent = error.message;
-        errBox.classList.remove("hidden");
-        return;
-      }
-      clips.unshift(data);
-      openClipId = data.id;
-      notesByClip[data.id] = [];
-      activeTab = "clips";
-      render();
-    };
+    const addBtn = document.getElementById("add-clip-btn");
+    if (addBtn) {
+      addBtn.onclick = async () => {
+        const url = document.getElementById("new-clip-url").value.trim();
+        const title = document.getElementById("new-clip-title").value.trim();
+        const errBox = document.getElementById("new-clip-error");
+        errBox.classList.add("hidden");
+        const videoId = extractYouTubeId(url);
+        if (!videoId) {
+          errBox.textContent = tr("invalidUrl");
+          errBox.classList.remove("hidden");
+          return;
+        }
+        const { data, error } = await supabase
+          .from("clips")
+          .insert({ youtube_url: url, video_id: videoId, title: title || null, user_id: session.user.id })
+          .select()
+          .single();
+        if (error) {
+          errBox.textContent = error.message;
+          errBox.classList.remove("hidden");
+          return;
+        }
+        clips.unshift(data);
+        openClipId = data.id;
+        notesByClip[data.id] = [];
+        activeTab = "clips";
+        render();
+      };
+    }
   }
 
   if (activeTab === "clips") {
@@ -593,6 +620,20 @@ function attachAppHandlers() {
         cancelBtn.onclick = () => {
           editingNote = null;
           render();
+        };
+      }
+
+      const deleteClipBtn = document.querySelector(`[data-delete-clip="${openClipId}"]`);
+      if (deleteClipBtn) {
+        deleteClipBtn.onclick = async () => {
+          if (!confirm(tr("confirmDelete"))) return;
+          const { error } = await supabase.from("clips").delete().eq("id", openClipId);
+          if (!error) {
+            clips = clips.filter((c) => c.id !== openClipId);
+            delete notesByClip[openClipId];
+            openClipId = null;
+            render();
+          }
         };
       }
 
