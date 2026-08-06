@@ -15,7 +15,7 @@ let clips = [];
 let notesByClip = {};
 let openClipId = null;
 let activeTab = "clips";
-let editingNote = null; // { clipId, noteId } or null
+let editingNote = null;
 let authMode = "login";
 
 const ZONES = ["ft", "paint", "mid", "three"];
@@ -72,22 +72,23 @@ function tr(key) { return t(lang, key); }
 
 function formatAuthMessage(errorOrMsg) {
   if (!errorOrMsg) return '';
-  const msg = (typeof errorOrMsg === 'string' ? errorOrMsg : errorOrMsg.message || '').toLowerCase();
+  const raw = typeof errorOrMsg === 'string' ? errorOrMsg : (errorOrMsg.message || '');
+  const msg = raw.toLowerCase();
 
   if (lang === 'he') {
     if (msg.includes('email not confirmed')) return 'יש לאשר את כתובת האימייל בתיבת הדואר שלך כדי להתחבר.';
     if (msg.includes('invalid login credentials')) return 'כתובת אימייל או סיסמה שגויים.';
-    if (msg.includes('user already registered')) return 'משתמש עם כתובת אימייל זו כבר קיים במערכת.';
+    if (msg.includes('already registered') || msg.includes('user already registered')) return 'משתמש עם כתובת אימייל זו כבר קיים במערכת.';
     if (msg.includes('password should be at least')) return 'הסיסמה חייבת להכיל לפחות 6 תווים.';
     if (msg.includes('rate limit')) return 'בוצעו יותר מדי ניסיונות. אנא נסה שוב בעוד מספר דקות.';
-    if (msg.includes('check your email')) return 'בדוק את תיבת הדואר שלך כדי לאשר את החשבון, ואז התחבר.';
+    if (msg.includes('check your email') || msg.includes('confirm your account')) return 'נשלח מייל אישור! יש לבדוק את תיבת הדואר שלך כדי לאשר את החשבון, ואז להתחבר.';
     if (msg.includes('please fill in all fields')) return 'אנא מלא את כל השדות.';
   } else {
-    if (msg.includes('check your email')) return 'Check your email to confirm your account, then log in.';
+    if (msg.includes('check your email') || msg.includes('confirm your account')) return 'Check your email to confirm your account, then log in.';
     if (msg.includes('please fill in all fields')) return 'Please fill in all fields.';
   }
 
-  return typeof errorOrMsg === 'string' ? errorOrMsg : errorOrMsg.message;
+  return raw;
 }
 
 function showAuthStatus(errorOrMsg, forceIsError = null) {
@@ -97,28 +98,15 @@ function showAuthStatus(errorOrMsg, forceIsError = null) {
   const rawMsg = typeof errorOrMsg === 'string' ? errorOrMsg : (errorOrMsg?.message || '');
   const lower = rawMsg.toLowerCase();
 
-  // זיהוי אוטומטי של הודעות הנחיה/אישור מייל (info) מול שגיאות אמיתיות (error)
   const isInfo = lower.includes("check your email") || 
                  lower.includes("email not confirmed") || 
                  lower.includes("confirm your account") ||
-                 lower.includes("בדוק את תיבת הדואר");
+                 lower.includes("נשלח מייל אישור");
 
   const isError = forceIsError !== null ? forceIsError : !isInfo;
 
   errBox.textContent = formatAuthMessage(errorOrMsg);
-
-  if (isError) {
-    errBox.className = "error-msg";
-    errBox.style.color = "#fca5a5";
-    errBox.style.backgroundColor = "rgba(239, 68, 68, 0.15)";
-    errBox.style.borderColor = "#ef4444";
-  } else {
-    errBox.className = "info-msg";
-    errBox.style.color = "#ffffff";
-    errBox.style.backgroundColor = "rgba(255, 255, 255, 0.12)";
-    errBox.style.borderColor = "rgba(255, 255, 255, 0.3)";
-  }
-
+  errBox.className = isError ? "error-msg" : "info-msg";
   errBox.classList.remove("hidden");
 }
 
@@ -678,7 +666,7 @@ function attachAppHandlers() {
       if (deleteClipBtn) {
         deleteClipBtn.onclick = async () => {
           if (!confirm(tr("confirmDelete"))) return;
-          const { error } = await supabase.from("clips").delete().eq("id", openClipId);
+          const { error } = await supabase.from("notes").delete().eq("id", openClipId);
           if (!error) {
             clips = clips.filter((c) => c.id !== openClipId);
             delete notesByClip[openClipId];
