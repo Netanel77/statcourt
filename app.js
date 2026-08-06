@@ -68,6 +68,37 @@ function setLang(newLang) {
 
 function tr(key) { return t(lang, key); }
 
+// ---------------- auth message translation & formatting ----------------
+
+function formatAuthMessage(errorOrMsg) {
+  if (!errorOrMsg) return '';
+  const msg = (typeof errorOrMsg === 'string' ? errorOrMsg : errorOrMsg.message || '').toLowerCase();
+
+  if (lang === 'he') {
+    if (msg.includes('email not confirmed')) return 'יש לאשר את כתובת האימייל בתיבת הדואר שלך כדי להתחבר.';
+    if (msg.includes('invalid login credentials')) return 'כתובת אימייל או סיסמה שגויים.';
+    if (msg.includes('user already registered')) return 'משתמש עם כתובת אימייל זו כבר קיים במערכת.';
+    if (msg.includes('password should be at least')) return 'הסיסמה חייבת להכיל לפחות 6 תווים.';
+    if (msg.includes('rate limit')) return 'בוצעו יותר מדי ניסיונות. אנא נסה שוב בעוד מספר דקות.';
+    if (msg.includes('check your email')) return 'בדוק את תיבת הדואר שלך כדי לאשר את החשבון, ואז התחבר.';
+    if (msg.includes('please fill in all fields')) return 'אנא מלא את כל השדות.';
+  } else {
+    if (msg.includes('check your email')) return 'Check your email to confirm your account, then log in.';
+    if (msg.includes('please fill in all fields')) return 'Please fill in all fields.';
+  }
+
+  return typeof errorOrMsg === 'string' ? errorOrMsg : errorOrMsg.message;
+}
+
+function showAuthStatus(errorOrMsg, isError = true) {
+  const errBox = document.getElementById("auth-error");
+  if (!errBox) return;
+
+  errBox.textContent = formatAuthMessage(errorOrMsg);
+  errBox.className = isError ? "error-msg" : "info-msg";
+  errBox.classList.remove("hidden");
+}
+
 // ---------------- data access ----------------
 
 async function loadClips() {
@@ -174,11 +205,10 @@ function attachAuthHandlers() {
       const email = document.getElementById("auth-email").value.trim();
       const password = document.getElementById("auth-password").value;
       const errBox = document.getElementById("auth-error");
-      errBox.classList.add("hidden");
+      if (errBox) errBox.classList.add("hidden");
 
       if (!email || !password) {
-        errBox.textContent = "Please fill in all fields.";
-        errBox.classList.remove("hidden");
+        showAuthStatus("Please fill in all fields.", true);
         return;
       }
 
@@ -190,8 +220,9 @@ function attachAuthHandlers() {
       }
 
       if (result.error) {
-        errBox.textContent = result.error.message || tr("authError");
-        errBox.classList.remove("hidden");
+        // אם ההודעה היא על כך שהאימייל לא מאושר -> מציגים בלבן (info-msg), אחרת באדום (error-msg)
+        const isEmailConfirmNotice = result.error.message?.toLowerCase().includes("email not confirmed");
+        showAuthStatus(result.error, !isEmailConfirmNotice);
         return;
       }
 
@@ -200,8 +231,7 @@ function attachAuthHandlers() {
         await loadClips();
         render();
       } else if (authMode === "signup") {
-        errBox.textContent = "Check your email to confirm your account, then log in.";
-        errBox.classList.remove("hidden");
+        showAuthStatus("Check your email to confirm your account, then log in.", false);
       }
     };
   }
