@@ -370,3 +370,26 @@ button.link-btn {
 .auth-wrap { width: 100%; max-width: 380px; margin: 40px auto; }
 .center-logo { text-align: center; margin-bottom: 24px; }
 .clip-actions-top { display: flex; justify-content: flex-end; margin-top: 8px; }
+/* הודעת תקלה / שגיאה - אדום */
+.error-msg {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+/* הודעת הנחיה / מידע - לבן */
+.info-msg {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  color: #ffffff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  text-align: center;
+}
