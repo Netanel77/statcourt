@@ -90,12 +90,35 @@ function formatAuthMessage(errorOrMsg) {
   return typeof errorOrMsg === 'string' ? errorOrMsg : errorOrMsg.message;
 }
 
-function showAuthStatus(errorOrMsg, isError = true) {
+function showAuthStatus(errorOrMsg, forceIsError = null) {
   const errBox = document.getElementById("auth-error");
   if (!errBox) return;
 
+  const rawMsg = typeof errorOrMsg === 'string' ? errorOrMsg : (errorOrMsg?.message || '');
+  const lower = rawMsg.toLowerCase();
+
+  // זיהוי אוטומטי של הודעות הנחיה/אישור מייל (info) מול שגיאות אמיתיות (error)
+  const isInfo = lower.includes("check your email") || 
+                 lower.includes("email not confirmed") || 
+                 lower.includes("confirm your account") ||
+                 lower.includes("בדוק את תיבת הדואר");
+
+  const isError = forceIsError !== null ? forceIsError : !isInfo;
+
   errBox.textContent = formatAuthMessage(errorOrMsg);
-  errBox.className = isError ? "error-msg" : "info-msg";
+
+  if (isError) {
+    errBox.className = "error-msg";
+    errBox.style.color = "#fca5a5";
+    errBox.style.backgroundColor = "rgba(239, 68, 68, 0.15)";
+    errBox.style.borderColor = "#ef4444";
+  } else {
+    errBox.className = "info-msg";
+    errBox.style.color = "#ffffff";
+    errBox.style.backgroundColor = "rgba(255, 255, 255, 0.12)";
+    errBox.style.borderColor = "rgba(255, 255, 255, 0.3)";
+  }
+
   errBox.classList.remove("hidden");
 }
 
@@ -220,9 +243,7 @@ function attachAuthHandlers() {
       }
 
       if (result.error) {
-        // אם ההודעה היא על כך שהאימייל לא מאושר -> מציגים בלבן (info-msg), אחרת באדום (error-msg)
-        const isEmailConfirmNotice = result.error.message?.toLowerCase().includes("email not confirmed");
-        showAuthStatus(result.error, !isEmailConfirmNotice);
+        showAuthStatus(result.error);
         return;
       }
 
